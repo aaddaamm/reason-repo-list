@@ -1,21 +1,50 @@
-[%bs.raw {|require('./app.css')|}];
+type state = {repoData: option(array(RepoData.repo))};
 
-[@bs.module] external logo : string = "./logo.svg";
+type action =
+  | Loaded(array(RepoData.repo));
 
-let component = ReasonReact.statelessComponent("App");
+let component = ReasonReact.reducerComponent("App");
 
-let make = (~message, _children) => {
+let make = (_children) => {
   ...component,
-  render: (_self) =>
+  initialState: () => {
+    repoData: None
+  },
+  didMount: (self) => {
+    let handleReposLoaded = self.reduce(repoData => Loaded(repoData));
+
+    RepoData.fetchRepos()
+      |> Js.Promise.then_(repoData => {
+           handleReposLoaded(repoData);
+           Js.Promise.resolve();
+         })
+      |> ignore;
+
+    ReasonReact.NoUpdate;
+  },
+  reducer: (action, _state) => {
+    switch action {
+      | Loaded(loadedRepo) =>
+        ReasonReact.Update({
+          repoData: Some(loadedRepo)
+        })
+    }
+  },
+  render: (self) => {
+    let repoItem =
+      switch (self.state.repoData) {
+      | Some(repos) => ReasonReact.arrayToElement(
+          Array.map(
+            (repo: RepoData.repo) => <RepoItem key=repo.full_name repo=repo />,
+            repos
+          )
+        )
+      | None => ReasonReact.stringToElement("Loading")
+      };
+
     <div className="App">
-      <div className="App-header">
-        <img src=logo className="App-logo" alt="logo" />
-        <h2> (ReasonReact.stringToElement(message)) </h2>
-      </div>
-      <p className="App-intro">
-        (ReasonReact.stringToElement("To get started, edit"))
-        <code> (ReasonReact.stringToElement(" src/app.re ")) </code>
-        (ReasonReact.stringToElement("and save to reload."))
-      </p>
+      <h1>{ReasonReact.stringToElement("Reason Projects")}</h1>
+      {repoItem}
     </div>
+  }
 };
