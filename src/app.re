@@ -5,40 +5,32 @@ type action =
 
 let component = ReasonReact.reducerComponent("App");
 
-/* our dummy data */
-let dummyRepo: array(RepoData.repo) = [|
-  RepoData.parseRepoJson(
-    Js.Json.parseExn(
-      {js|
-        {
-          "stargazers_count": 93,
-          "full_name": "reasonml/reason-tools",
-          "html_url": "https://github.com/reasonml/reason-tools"
-        }
-      |js}
-    )
-  )
-|];
-
 let make = (_children) => {
   ...component,
-  reducer: (action, _state) => {
-    switch action {
-    | Loaded(loadedRepo) =>
-      ReasonReact.Update({
-        repoData: Some(loadedRepo)
-      })
-    }
-  },
   initialState: () => {
     repoData: None
   },
-  render: (self) => {
-    let loadedReposButton =
-      <button onClick=self.reduce((_event) => Loaded(dummyRepo))>
-        {ReasonReact.stringToElement("Load Repos")}
-      </button>;
+  didMount: (self) => {
+    let handleReposLoaded = self.reduce(repoData => Loaded(repoData));
 
+    RepoData.fetchRepos()
+      |> Js.Promise.then_(repoData => {
+           handleReposLoaded(repoData);
+           Js.Promise.resolve();
+         })
+      |> ignore;
+
+    ReasonReact.NoUpdate;
+  },
+  reducer: (action, _state) => {
+    switch action {
+      | Loaded(loadedRepo) =>
+        ReasonReact.Update({
+          repoData: Some(loadedRepo)
+        })
+    }
+  },
+  render: (self) => {
     let repoItem =
       switch (self.state.repoData) {
       | Some(repos) => ReasonReact.arrayToElement(
@@ -47,7 +39,7 @@ let make = (_children) => {
             repos
           )
         )
-      | None => loadedReposButton
+      | None => ReasonReact.stringToElement("Loading")
       };
 
     <div className="App">
